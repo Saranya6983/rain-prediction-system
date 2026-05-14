@@ -9,7 +9,7 @@ import requests
 model = pickle.load(open("rain_model.pkl", "rb"))
 
 # Load dataset
-data = pd.read_csv("data/weather.csv")
+data = pd.read_csv("weather.csv")
 
 # OpenWeather API Key
 API_KEY = "bd276c7f73ba6838d08eb291b4919b1a"
