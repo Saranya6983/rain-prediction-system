@@ -55,3 +55,13 @@ https://github.com/Saranya6983/rain-prediction-system
 ```bash
 pip install -r requirements.txt
 streamlit run app.py
+## 📸 Screenshots
+
+### Home Page
+![Home](home.jepg)
+
+### Prediction Result
+![Prediction](prediction.jepg)
+
+### Weather Charts
+![Charts](chart.jepg)
