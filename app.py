@@ -4,74 +4,136 @@ import numpy as np
 import plotly.express as px
 import pandas as pd
 import requests
+from streamlit_js_eval import streamlit_js_eval
 
-# Load trained model
-model = pickle.load(open("rain_model.pkl", "rb"))
-
-# Load dataset
-data = pd.read_csv("weather.csv")
-
-# OpenWeather API Key
-API_KEY = "bd276c7f73ba6838d08eb291b4919b1a"
-
-# Page settings
+# PAGE SETTINGS
 st.set_page_config(
     page_title="Rain Prediction App",
     page_icon="🌧️",
-    layout="centered"
+    layout="wide"
 )
 
-# Sidebar
+# LOAD MODEL
+model = pickle.load(open("rain_model.pkl", "rb"))
+
+# LOAD DATASET
+data = pd.read_csv("weatherAUS.csv")
+
+# API KEY
+API_KEY = "bd276c7f73ba6838d08eb291b4919b1a"
+
+# SIDEBAR
 st.sidebar.title("🌦️ Dashboard Menu")
 
-st.sidebar.info(
-    """
-    Rain Prediction System
-    
-    Features:
-    - Live Weather
-    - AI Rain Prediction
-    - Forecast Trends
-    - Weather Visualization
-    """
-)
+st.sidebar.info("""
+Rain Prediction System
 
-# Title
+Features:
+• Live Weather
+• AI Rain Prediction
+• Forecast Trends
+• Weather Visualization
+""")
+
+# TITLE
 st.title("🌧️ Rain Prediction System")
 
-st.markdown("### Enter Weather Details")
+st.markdown("## Enter Weather Details")
 
-# City input
+# CITY INPUT
 city = st.text_input(
-    "Enter City Name",
+    "Enter City / Area",
     "Chennai"
 )
 
-# Live weather button
+st.caption(
+    "🌍 Supports live weather prediction for cities worldwide"
+)
+
+# GPS LOCATION
+lat = None
+lon = None
+
+try:
+
+    location = streamlit_js_eval(
+        js_expressions="""
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                return {
+                    latitude: pos.coords.latitude,
+                    longitude: pos.coords.longitude
+                }
+            }
+        )
+        """,
+        key="get_location"
+    )
+
+    if location:
+
+        lat = location["latitude"]
+        lon = location["longitude"]
+
+        st.success("✅ Live GPS Location Detected")
+
+        st.write(f"Latitude: {lat}")
+        st.write(f"Longitude: {lon}")
+
+except:
+    pass
+
+# LIVE WEATHER
 if st.button("Get Live Weather"):
 
-    # Current Weather API
-    url = f"https://api.openweathermap.org/data/2.5/weather?q={city}&appid={API_KEY}&units=metric"
+    # GPS MODE
+    if lat and lon:
 
+        url = (
+            f"https://api.openweathermap.org/data/2.5/weather?"
+            f"lat={lat}&lon={lon}&appid={API_KEY}&units=metric"
+        )
+
+        forecast_url = (
+            f"https://api.openweathermap.org/data/2.5/forecast?"
+            f"lat={lat}&lon={lon}&appid={API_KEY}&units=metric"
+        )
+
+    # CITY MODE
+    else:
+
+        url = (
+            f"https://api.openweathermap.org/data/2.5/weather?"
+            f"q={city}&appid={API_KEY}&units=metric"
+        )
+
+        forecast_url = (
+            f"https://api.openweathermap.org/data/2.5/forecast?"
+            f"q={city}&appid={API_KEY}&units=metric"
+        )
+
+    # CURRENT WEATHER
     response = requests.get(url)
 
     weather_data = response.json()
 
     if response.status_code == 200:
 
+        city_name = weather_data["name"]
+
         temp = weather_data['main']['temp']
         humidity_live = weather_data['main']['humidity']
         pressure_live = weather_data['main']['pressure']
         wind_live = weather_data['wind']['speed']
 
-        st.success(f"✅ Live Weather in {city}")
+        st.success(f"✅ Live Weather in {city_name}")
 
-        # Metric Cards
+        # METRICS
         col1, col2, col3, col4 = st.columns(4)
 
         with col1:
             st.metric(
-                "🌡 Temp",
+                "🌡 Temperature",
                 f"{temp} °C"
             )
 
@@ -95,7 +157,7 @@ if st.button("Get Live Weather"):
 
         st.divider()
 
-        # Live AI Prediction
+        # AI PREDICTION
         live_features = np.array([[
             temp - 5,
             temp + 5,
@@ -104,32 +166,28 @@ if st.button("Get Live Weather"):
             wind_live
         ]])
 
-        live_prediction = model.predict(
+        prediction = model.predict(
             live_features
         )
 
-        live_probability = model.predict_proba(
+        probability = model.predict_proba(
             live_features
         )
 
-        rain_chance = (
-            live_probability[0][1] * 100
-        )
+        rain_probability = probability[0][1] * 100
 
         st.subheader("🤖 Live AI Prediction")
 
-        if live_prediction[0] == 1:
+        if prediction[0] == 1:
             st.success("🌧️ Rain Expected")
         else:
             st.warning("☀️ No Rain Expected")
 
         st.info(
-            f"Rain Probability: {rain_chance:.2f}%"
+            f"Rain Probability: {rain_probability:.2f}%"
         )
 
-        # Forecast API
-        forecast_url = f"https://api.openweathermap.org/data/2.5/forecast?q={city}&appid={API_KEY}&units=metric"
-
+        # FORECAST API
         forecast_response = requests.get(
             forecast_url
         )
@@ -142,27 +200,40 @@ if st.button("Get Live Weather"):
 
             dates = []
             temperatures = []
+            humidities = []
+            pressures = []
 
             for item in forecast_list[:10]:
 
-                dates.append(
-                    item['dt_txt']
-                )
+                dates.append(item['dt_txt'])
 
                 temperatures.append(
                     item['main']['temp']
                 )
 
+                humidities.append(
+                    item['main']['humidity']
+                )
+
+                pressures.append(
+                    item['main']['pressure']
+                )
+
             forecast_df = pd.DataFrame({
                 "Date": dates,
-                "Temperature": temperatures
+                "Temperature": temperatures,
+                "Humidity": humidities,
+                "Pressure": pressures
             })
 
+            st.divider()
+
+            # TEMPERATURE TREND
             st.subheader(
                 "📅 Forecast Temperature Trend"
             )
 
-            fig_forecast = px.line(
+            fig_temp = px.line(
                 forecast_df,
                 x="Date",
                 y="Temperature",
@@ -171,18 +242,54 @@ if st.button("Get Live Weather"):
             )
 
             st.plotly_chart(
-                fig_forecast,
+                fig_temp,
+                use_container_width=True
+            )
+
+            # HUMIDITY TREND
+            st.subheader(
+                "💧 Humidity Trend"
+            )
+
+            fig_humidity = px.line(
+                forecast_df,
+                x="Date",
+                y="Humidity",
+                title="Humidity Forecast",
+                markers=True
+            )
+
+            st.plotly_chart(
+                fig_humidity,
+                use_container_width=True
+            )
+
+            # PRESSURE TREND
+            st.subheader(
+                "📈 Pressure Trend"
+            )
+
+            fig_pressure = px.line(
+                forecast_df,
+                x="Date",
+                y="Pressure",
+                title="Pressure Forecast",
+                markers=True
+            )
+
+            st.plotly_chart(
+                fig_pressure,
                 use_container_width=True
             )
 
     else:
-        st.error(weather_data["message"])
+        st.error("Unable to fetch weather data")
 
-# Divider
+# DIVIDER
 st.divider()
 
-# Manual Prediction Section
-st.subheader("🛠 Manual Weather Prediction")
+# MANUAL PREDICTION
+st.subheader("🛠️ Manual Weather Prediction")
 
 min_temp = st.slider(
     "Min Temperature",
@@ -219,7 +326,7 @@ wind = st.slider(
     15.0
 )
 
-# Manual Prediction Button
+# MANUAL BUTTON
 if st.button("Predict Rain"):
 
     features = np.array([[
@@ -234,34 +341,25 @@ if st.button("Predict Rain"):
 
     probability = model.predict_proba(features)
 
-    rain_probability = (
-        probability[0][1] * 100
-    )
+    rain_probability = probability[0][1] * 100
 
     st.subheader("📌 Prediction Result")
 
     if prediction[0] == 1:
-        st.success(
-            "🌧️ Rain Expected Tomorrow"
-        )
+        st.success("🌧️ Rain Expected Tomorrow")
     else:
-        st.warning(
-            "☀️ No Rain Expected"
-        )
+        st.warning("☀️ No Rain Expected")
 
     st.info(
         f"Rain Probability: {rain_probability:.2f}%"
     )
 
-# Divider
+# VISUALIZATION
 st.divider()
 
-# Visualization Section
-st.markdown(
-    "## 📊 Weather Data Visualization"
-)
+st.markdown("## 📊 Weather Data Visualization")
 
-# Humidity Distribution
+# HUMIDITY GRAPH
 fig1 = px.histogram(
     data,
     x="Humidity9am",
@@ -274,7 +372,7 @@ st.plotly_chart(
     use_container_width=True
 )
 
-# Temperature vs Rain
+# TEMPERATURE GRAPH
 fig2 = px.scatter(
     data,
     x="MinTemp",
